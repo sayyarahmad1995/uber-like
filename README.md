@@ -50,6 +50,8 @@ their requirements become clear.
 9. Important ride state transitions are controlled by the backend.
 10. Architecture should allow high-load components such as dispatch and
     location processing to be extracted later if necessary.
+11. Ride requests use a driver fare-bidding marketplace rather than
+    automatic driver assignment.
 
 ## Current Decisions
 
@@ -65,6 +67,8 @@ their requirements become clear.
 | API Gateway | Yes | Decided |
 | Deployment | Self-managed server | Decided |
 | Initial scaling strategy | Vertical | Decided |
+| Ride matching | Driver fare bidding | Decided |
+| Bid visibility | Riders see competing bids; drivers do not | Decided |
 | Backend architecture | Modular monolith | Proposed |
 | Payments | TBD | Deferred |
 | Notifications | TBD | Deferred |

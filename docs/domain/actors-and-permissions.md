@@ -2,34 +2,32 @@
 
 ## 1. Purpose
 
-This document defines the actors in the ride-hailing platform and the
-permissions required to perform important actions.
+This document defines the actors, capabilities, and authorization rules of
+the ride-hailing platform.
 
 The backend is authoritative for authorization. The Flutter application may
-show or hide functionality based on the user's current mode, but hiding a UI
-control is not a security boundary.
+show or hide functionality based on the user's current mode, but UI state is
+never a security boundary.
 
 ---
 
 ## 2. Actors
 
-The initial system has four meaningful actors:
+The initial system has three application actors and one external dependency:
 
 ```text
 User
  ├── Rider capability
- └── Driver capability
-
-Driver capability
- └── Vehicle
+ └── Driver profile/capability
+       └── Vehicle(s)
 
 Platform Administrator
 
 External OIDC Provider
 ```
 
-The OIDC provider authenticates the user but is not an application-level
-actor with access to rides or other business operations.
+The OIDC provider authenticates users but does not receive application-level
+permissions over rides, bids, drivers, or vehicles.
 
 ---
 
@@ -38,101 +36,199 @@ actor with access to rides or other business operations.
 A User is the application's internal identity associated with an external
 OIDC subject.
 
-A user may have:
+A user may operate as a rider and may also have a driver profile.
 
-- Rider capability
-- Driver capability
-- Both capabilities
-
-Having a driver capability does not automatically mean that the user may
-operate as an active driver. Driver approval and operational availability
-are separate concepts.
+The same User identity is used in both modes.
 
 ---
 
-## 4. Rider
+## 4. Rider Capabilities
 
 A rider may:
 
 - View and manage their own profile
 - Select pickup and destination
 - Request a ride
-- View their own active ride
-- View the assigned driver's relevant trip information
-- Cancel their own ride when the current ride state permits cancellation
+- View the reference fare
+- View valid bids for their ride
+- Select one valid bid
+- View the selected driver's relevant trip information
+- Cancel their own ride when the lifecycle permits it
 - View their own ride history
 
 A rider must not be able to:
 
-- Modify another user's profile
-- Accept a ride for a driver
-- Change another driver's availability
-- Change ride state on behalf of a driver
-- Access another user's location unless explicitly permitted by the active
-  ride relationship
-- Arbitrarily set a ride's state
-
----
-
-## 5. Driver
-
-A driver must have an approved driver capability before performing driver
-operations.
-
-An eligible driver may:
-
-- View and manage their driver profile
-- View and manage their eligible vehicle information
-- Go online
-- Go offline
-- Receive ride offers
-- Accept an offered ride
-- Reject or allow an offer to expire
-- Report arrival at the pickup location
-- Start the assigned trip
-- Complete the assigned trip
-- Send their current location while operationally active
-- View their own driver trip history
-
-A driver must not be able to:
-
-- Accept a ride that was not offered to them
-- Accept a ride already assigned to another driver
-- Start a ride that is not assigned to them
-- Complete a ride that is not assigned to them
-- Modify another driver's availability
-- Impersonate another driver
-- Arbitrarily set their driver status to an invalid state
+- Submit a bid as another driver
+- Modify or withdraw another driver's bid
+- Change the agreed fare directly
+- Assign a driver without selecting a valid bid
+- Change another user's availability
+- Arbitrarily set a ride state
+- Access arbitrary drivers' live locations
 - Access unrelated riders' private information
 
 ---
 
-## 6. Platform Administrator
+## 5. Driver Capability
 
-An administrator represents trusted platform operations.
+A user must have an approved driver profile to perform driver operations.
 
-Administrative capabilities are intentionally broad but should be explicitly
-scoped as the admin system is designed.
+An eligible driver may:
 
-Potential administrative operations include:
+- View and manage their driver profile
+- Manage their eligible vehicle information
+- Go online
+- Go offline
+- Participate in eligible bidding opportunities
+- Submit one active bid per ride
+- Modify their active bid while bidding is open
+- Withdraw their active bid while bidding is open
+- Receive notification when selected
+- Confirm a selected ride
+- Report arrival at pickup
+- Start the assigned trip
+- Complete the assigned trip
+- Send current operational location
+- View their own driver ride history
 
-- Review driver applications
-- Approve or reject drivers
-- Suspend users or drivers
-- Manage vehicles when required for operations
-- Inspect rides and ride events
-- Cancel rides for operational reasons
-- Investigate disputes and incidents
+A driver must not be able to:
 
-Administrative permissions should not be implemented as a single unrestricted
-boolean if the administration system grows. More granular permissions can be
-introduced when administrative requirements are defined.
+- Bid on an ineligible ride
+- Submit multiple active bids for the same ride
+- Submit or modify a bid after the bidding deadline
+- See competing drivers' bid amounts
+- Accept a ride that was not selected for them
+- Confirm a ride after their confirmation deadline
+- Start a ride that is not assigned to them
+- Complete a ride that is not assigned to them
+- Modify another driver's availability
+- Impersonate another driver
+- Access unrelated riders' private information
+- Access arbitrary users' live locations
 
 ---
 
-## 7. Rider and Driver Mode
+## 6. Driver Eligibility
 
-The Flutter application contains a single application with a mode switch.
+A driver may participate in bidding only when the backend confirms the driver
+is eligible.
+
+Initial eligibility conditions are:
+
+```text
+Authenticated
+     ↓
+Approved driver profile
+     ↓
+Not suspended
+     ↓
+Eligible vehicle
+     ↓
+Operationally online
+     ↓
+Geographically eligible
+     ↓
+Not committed to an active ride
+     ↓
+Eligible for the ride's requirements
+```
+
+Eligibility is checked when the driver submits or changes a bid and is
+re-checked when the rider selects the bid.
+
+The client must never be the authority for eligibility.
+
+---
+
+## 7. Driver Availability
+
+Approval and availability are separate concepts.
+
+```text
+Driver approval:
+PENDING / APPROVED / SUSPENDED / REJECTED
+
+Driver availability:
+OFFLINE / ONLINE / BUSY
+```
+
+A driver must be approved and operationally eligible before going online.
+
+A driver who becomes committed to an active ride becomes unavailable for
+additional assignments, even if the client still displays an online state.
+
+---
+
+## 8. Bidding Permissions
+
+### Submit bid
+
+Allowed for an eligible driver while the ride's bidding window is open.
+
+The backend validates:
+
+- Driver identity
+- Driver eligibility
+- Ride state
+- Bidding deadline
+- Existing active bid
+- Bid amount limits
+
+### Modify bid
+
+Allowed only for the driver's own active bid and only while bidding is open.
+
+### Withdraw bid
+
+Allowed only for the driver's own active bid and only while bidding is open.
+
+### View bids
+
+A rider may view valid bids for their own ride.
+
+A driver may view their own bid but must not see competing drivers' bid
+amounts.
+
+### Select bid
+
+Only the rider associated with the ride may select a bid.
+
+Selection requires a fresh backend eligibility check and must atomically
+establish the driver and agreed fare.
+
+---
+
+## 9. Driver Selection and Confirmation
+
+Selecting a bid does not immediately mean the driver has confirmed the ride.
+
+The flow is:
+
+```text
+Rider selects driver's bid
+        ↓
+Backend validates bid and driver
+        ↓
+Driver is temporarily selected/reserved
+        ↓
+Driver receives confirmation request
+        ↓
+Driver confirms within deadline
+        ↓
+Driver becomes committed to the ride
+```
+
+If the driver does not confirm before the deadline, the backend may attempt a
+valid fallback bid according to the ride lifecycle rules.
+
+The driver cannot arbitrarily reject a ride after selection without creating a
+recorded cancellation/failure event.
+
+---
+
+## 10. Rider and Driver Mode
+
+The Flutter application is a single application with a mode switch.
 
 ```text
                  User
@@ -142,111 +238,125 @@ The Flutter application contains a single application with a mode switch.
      Rider Mode        Driver Mode
 ```
 
-Changing the UI mode does not change the user's identity or grant new
-permissions.
-
-When a user selects Driver Mode, the backend must determine whether the user
-has an approved and eligible driver capability.
-
-Likewise, entering Rider Mode does not require the user to stop being an
-approved driver.
-
-The active application mode is therefore a client experience, while actual
-authorization remains server-side.
-
----
-
-## 8. Core Permission Matrix
-
-| Action | Rider | Driver | Admin |
-|---|---:|---:|---:|
-| View own profile | Yes | Yes | Yes |
-| Request ride | Yes | Yes* | Yes* |
-| Cancel own ride | Yes | No** | Yes |
-| Go online | No | Yes | Yes |
-| Go offline | No | Yes | Yes |
-| Receive ride offer | No | Yes | No |
-| Accept assigned offer | No | Yes | No |
-| Report driver arrival | No | Yes | No |
-| Start assigned trip | No | Yes | No |
-| Complete assigned trip | No | Yes | No |
-| Send driver location | No | Yes | No |
-| View own ride history | Yes | Yes | Yes |
-| Approve driver | No | No | Yes |
-| Suspend user/driver | No | No | Yes |
-| Inspect ride events | Own rides | Own rides | Yes |
-
-`*` These permissions are not necessarily part of the initial MVP and must
-be explicitly defined before implementation. A driver account may also act as
-a rider because the platform uses a single user identity.
-
-`**` Driver cancellation rules will be defined separately. A driver may need
-to cancel/reject an assigned ride, but that is a different business action
-from a rider cancellation.
-
----
-
-## 9. Ride Ownership and Assignment
-
-Authorization for ride operations depends on the relationship between the
-actor and the ride.
+Changing the mode changes the application experience. It does not grant or
+remove authorization.
 
 For example:
 
 ```text
-Rider action
-    ↓
-Is authenticated user the rider of this ride?
-    ↓
-Is the requested transition valid?
-    ↓
+currentMode == DRIVER
+```
+
+is not sufficient to perform driver operations.
+
+The backend determines whether the authenticated User has an approved and
+eligible Driver profile.
+
+---
+
+## 11. Simultaneous Rider and Driver Activity
+
+Initially, a user must not be committed to an active driver ride and an active
+rider ride simultaneously.
+
+This prevents contradictory operational situations such as:
+
+```text
+User is transporting Rider A
+        +
+Same User requests a ride as Rider B
+```
+
+This rule may be revisited if product requirements change.
+
+---
+
+## 12. Platform Administrator
+
+An administrator represents trusted platform operations.
+
+Potential administrative capabilities include:
+
+- Review driver applications
+- Approve or reject drivers
+- Suspend users or drivers
+- Inspect rides and bids
+- Inspect ride events
+- Cancel rides for operational reasons
+- Investigate disputes and incidents
+
+The administrator model is intentionally not fully specified yet.
+
+If the administration system grows, permissions should become granular rather
+than being represented by one unrestricted boolean role.
+
+---
+
+## 13. Ride Ownership
+
+A ride operation must consider the authenticated user's relationship to the
+ride.
+
+For a rider action:
+
+```text
+Authenticated?
+      ↓
+Is this the ride's rider?
+      ↓
+Is the requested action valid for the current state?
+      ↓
 Allow
 ```
 
 For a driver action:
 
 ```text
-Driver action
-    ↓
-Is authenticated user an approved driver?
-    ↓
-Is this driver assigned/offered this ride?
-    ↓
-Is the requested transition valid?
-    ↓
+Authenticated?
+      ↓
+Approved driver?
+      ↓
+Is this driver the selected/assigned driver?
+      ↓
+Is the requested action valid for the current state?
+      ↓
 Allow
 ```
 
-Being authenticated is never sufficient by itself to perform a ride action.
+Being authenticated alone is never sufficient.
 
 ---
 
-## 10. Location Privacy
+## 14. Location Privacy
 
-Location data requires relationship-based authorization.
+Location access is relationship-based.
 
-A rider may receive the assigned driver's relevant current location during
-an active ride relationship.
+Before a rider selects a bid, the rider may see driver information such as
+ETA, but should not receive arbitrary precise live coordinates.
 
-A driver may receive the rider's relevant pickup/location information needed
-to perform the assigned ride.
+After a driver is selected/confirmed, the rider may receive the driver's
+relevant live location for the active ride.
+
+The driver may receive the pickup and other location information required to
+perform the assigned ride.
 
 Users must not be able to query arbitrary users' live locations.
 
-The exact location visibility rules and retention policy will be defined in
-the real-time and location design.
+Exact location visibility and retention rules will be defined in the
+real-time/location design.
 
 ---
 
-## 11. Backend Authorization Rules
+## 15. Backend Authorization Model
 
 Every protected operation should be evaluated against at least:
 
 1. Authentication
-2. Actor capability
+2. Capability or role
 3. Resource ownership or assignment
 4. Current resource state
 5. Requested action
+6. Relevant time/deadline constraints
 
 Conceptually:
 
@@ -256,6 +366,8 @@ Authenticated?
 Has required capability?
       ↓
 Owns or is assigned to resource?
+      ↓
+Within required time window?
       ↓
 Is current state compatible with action?
       ↓
@@ -267,57 +379,43 @@ constructs the request manually.
 
 ---
 
-## 12. Authorization vs Application Mode
+## 16. Important Security Principle
 
-The application must not treat the following as authorization:
+The following are not authorization mechanisms:
 
 ```text
+currentMode == RIDER
 currentMode == DRIVER
+button is hidden
+screen is inaccessible
 ```
 
-The backend should instead derive authorization from persistent account state
-and the requested operation.
-
-For example:
-
-```text
-POST /drivers/online
-
-Authenticated user
-    ↓
-Has approved driver capability?
-    ↓
-Has eligible vehicle?
-    ↓
-Is driver currently allowed to operate?
-    ↓
-Set driver availability to ONLINE
-```
+The server must enforce every important rule independently of client UI
+behavior.
 
 ---
 
-## 13. Deferred Decisions
+## 17. Deferred Decisions
 
 The following authorization details remain intentionally open:
 
 - Exact administrator roles
 - Driver onboarding and approval workflow
 - Driver suspension rules
-- Driver cancellation permissions and penalties
-- Whether drivers can request rides while online
-- Whether multiple vehicles can be active simultaneously
-- Fine-grained administrative permissions
-- Location retention and historical-location access
+- Driver cancellation penalties
+- Detailed vehicle verification
+- Exact location retention policy
 - Payment-related permissions
+- Fine-grained administrative permissions
 
-These should be resolved when the corresponding domains are designed.
+These will be defined with their respective domains.
 
 ---
 
-## 14. Principle
+## 18. Principle
 
-Authorization should be based on **who the user is, what capability they
-have, their relationship to the resource, and the current state of that
-resource**.
+Authorization is based on **who the user is, what capability they have,
+their relationship to the resource, the current state of that resource, and
+any applicable deadlines**.
 
 The client controls presentation. The backend controls authorization.

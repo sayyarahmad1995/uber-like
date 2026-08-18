@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: uber_like
+          POSTGRES_USER: uber_like
+          POSTGRES_PASSWORD: uber_like_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uber_like -d uber_like"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://uber_like:uber_like_ci@localhost:5432/uber_like?sslmode=disable
+      HTTP_ADDR: :8080
+      RESERVATION_TTL_SECONDS: 300
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Build API
+        run: go build ./cmd/api

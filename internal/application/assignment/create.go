@@ -13,6 +13,7 @@ import (
 type Create struct {
 	Transactions application.TransactionManager
 	Eligibility  application.EligibilityChecker
+	Clock        application.Clock
 }
 
 type Result struct {
@@ -38,7 +39,7 @@ func (uc Create) Execute(ctx context.Context, reservationID domainreservation.ID
 	if rsv.Status != domainreservation.StatusConfirmed {
 		return Result{}, application.ErrConflict
 	}
-	if rsv.ExpiresAt != nil {
+	if rsv.ExpiresAt != nil && !uc.Clock.Now().Before(*rsv.ExpiresAt) {
 		return Result{}, application.ErrConflict
 	}
 	eligible, err := uc.Eligibility.IsEligible(ctx, rsv.DriverID)

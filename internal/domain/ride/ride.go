@@ -2,6 +2,7 @@ package ride
 
 import (
 	"errors"
+
 	"github.com/google/uuid"
 )
 
@@ -22,14 +23,29 @@ const (
 
 var ErrInvalidTransition = errors.New("invalid ride state transition")
 
-type Ride struct {
-	ID     ID
-	RiderID uuid.UUID
-	Status Status
+// Coordinate is a validated geographic coordinate used by the ride aggregate.
+type Coordinate struct {
+	Latitude  float64
+	Longitude float64
 }
 
-func New(id ID, riderID uuid.UUID) Ride {
-	return Ride{ID: id, RiderID: riderID, Status: StatusRequested}
+func (c Coordinate) Valid() bool {
+	return c.Latitude >= -90 && c.Latitude <= 90 && c.Longitude >= -180 && c.Longitude <= 180
+}
+
+type Ride struct {
+	ID       ID
+	RiderID  uuid.UUID
+	Status   Status
+	Pickup   Coordinate
+	Dropoff  Coordinate
+}
+
+func New(id ID, riderID uuid.UUID, pickup, dropoff Coordinate) (Ride, error) {
+	if riderID == uuid.Nil || !pickup.Valid() || !dropoff.Valid() {
+		return Ride{}, errors.New("invalid ride")
+	}
+	return Ride{ID: id, RiderID: riderID, Status: StatusRequested, Pickup: pickup, Dropoff: dropoff}, nil
 }
 
 func (r *Ride) StartBidding() error {

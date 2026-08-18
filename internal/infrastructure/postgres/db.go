@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
 )
 
@@ -31,7 +32,7 @@ func (d *DB) Reservations() application.ReservationRepository { return reservati
 func (d *DB) Assignments() application.AssignmentRepository { return assignmentRepository{q: d.db} }
 func (d *DB) Drivers() application.DriverRepository { return driverRepository{q: d.db} }
 
-func (d *DB) IsEligible(ctx context.Context, driverID [16]byte) (bool, error) {
+func (d *DB) IsEligible(ctx context.Context, driverID uuid.UUID) (bool, error) {
 	var active bool
 	err := d.db.QueryRowContext(ctx, `SELECT status = 'active' FROM driver_profiles WHERE id = $1`, driverID).Scan(&active)
 	if err != nil { return false, notFound(err) }
@@ -39,3 +40,4 @@ func (d *DB) IsEligible(ctx context.Context, driverID [16]byte) (bool, error) {
 }
 
 var _ application.TransactionManager = (*DB)(nil)
+var _ application.EligibilityChecker = (*DB)(nil)

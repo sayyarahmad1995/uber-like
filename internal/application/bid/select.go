@@ -12,8 +12,9 @@ import (
 )
 
 type Select struct {
-	Transactions application.TransactionManager
-	Clock        application.Clock
+	Transactions   application.TransactionManager
+	Clock          application.Clock
+	ReservationTTL time.Duration
 }
 
 type SelectionResult struct {
@@ -23,7 +24,7 @@ type SelectionResult struct {
 }
 
 func (uc Select) Execute(ctx context.Context, bidID domainbid.ID, riderID uuid.UUID) (SelectionResult, error) {
-	if bidID == uuid.Nil || riderID == uuid.Nil {
+	if bidID == uuid.Nil || riderID == uuid.Nil || uc.ReservationTTL <= 0 {
 		return SelectionResult{}, application.ErrInvalidArgument
 	}
 
@@ -37,7 +38,8 @@ func (uc Select) Execute(ctx context.Context, bidID domainbid.ID, riderID uuid.U
 	if err != nil {
 		return SelectionResult{}, err
 	}
-	if b.ExpiresAt != nil && !uc.Clock.Now().Before(*b.ExpiresAt) {
+	now := uc.Clock.Now()
+	if b.ExpiresAt != nil && !now.Before(*b.ExpiresAt) {
 		return SelectionResult{}, domainbid.ErrInvalidTransition
 	}
 
@@ -58,8 +60,8 @@ func (uc Select) Execute(ctx context.Context, bidID domainbid.ID, riderID uuid.U
 		return SelectionResult{}, err
 	}
 
-	now := uc.Clock.Now()
-	rsv := reservation.New(uuid.New(), r.ID, b.ID, b.DriverID, &now)
+	expiresAt := now.Add(uc.ReservationTTL)
+	rsv := reservation.New(uuid.New(), r.ID, b.ID, b.DriverID, &expiresAt)
 	if err := tx.Bids().Save(ctx, b); err != nil {
 		return SelectionResult{}, err
 	}
@@ -75,5 +77,3 @@ func (uc Select) Execute(ctx context.Context, bidID domainbid.ID, riderID uuid.U
 
 	return SelectionResult{Ride: r, Bid: b, Reservation: rsv}, nil
 }
-
-var _ = time.Time{}

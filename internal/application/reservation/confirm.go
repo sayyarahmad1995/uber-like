@@ -2,6 +2,7 @@ package reservationapp
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
 	domainreservation "github.com/sayyarahmad1995/uber-like/internal/domain/reservation"
@@ -9,6 +10,7 @@ import (
 
 type Confirm struct {
 	Transactions application.TransactionManager
+	Clock        application.Clock
 }
 
 func (uc Confirm) Execute(ctx context.Context, reservationID domainreservation.ID, driverID uuid.UUID) (domainreservation.Reservation, error) {
@@ -29,7 +31,7 @@ func (uc Confirm) Execute(ctx context.Context, reservationID domainreservation.I
 	if r.DriverID != driverID {
 		return domainreservation.Reservation{}, application.ErrForbidden
 	}
-	if r.ExpiresAt != nil && !timeNowUTC().Before(*r.ExpiresAt) {
+	if r.ExpiresAt != nil && !uc.Clock.Now().Before(*r.ExpiresAt) {
 		return domainreservation.Reservation{}, domainreservation.ErrInvalidTransition
 	}
 	if err := r.Confirm(); err != nil {
@@ -43,5 +45,3 @@ func (uc Confirm) Execute(ctx context.Context, reservationID domainreservation.I
 	}
 	return r, nil
 }
-
-func timeNowUTC() time.Time { return time.Now().UTC() }

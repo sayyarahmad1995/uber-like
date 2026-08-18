@@ -6,8 +6,17 @@ import (
 	"github.com/google/uuid"
 )
 
+func newTestRide(t *testing.T) Ride {
+	t.Helper()
+	r, err := New(uuid.New(), uuid.New(), Coordinate{Latitude: 1, Longitude: 2}, Coordinate{Latitude: 3, Longitude: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func TestRideLifecycle(t *testing.T) {
-	r := New(uuid.New(), uuid.New())
+	r := newTestRide(t)
 
 	steps := []struct {
 		name string
@@ -37,7 +46,7 @@ func TestRideLifecycle(t *testing.T) {
 }
 
 func TestRideRejectsInvalidTransition(t *testing.T) {
-	r := New(uuid.New(), uuid.New())
+	r := newTestRide(t)
 
 	if err := r.Complete(); err != ErrInvalidTransition {
 		t.Fatalf("got %v, want %v", err, ErrInvalidTransition)
@@ -45,7 +54,7 @@ func TestRideRejectsInvalidTransition(t *testing.T) {
 }
 
 func TestRideCanCancelBeforeTripStarts(t *testing.T) {
-	r := New(uuid.New(), uuid.New())
+	r := newTestRide(t)
 
 	if err := r.StartBidding(); err != nil {
 		t.Fatal(err)
@@ -59,7 +68,7 @@ func TestRideCanCancelBeforeTripStarts(t *testing.T) {
 }
 
 func TestRideCannotCancelAfterCompletion(t *testing.T) {
-	r := New(uuid.New(), uuid.New())
+	r := newTestRide(t)
 	_ = r.StartBidding()
 	_ = r.Reserve()
 	_ = r.Assign()

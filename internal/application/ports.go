@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sayyarahmad1995/uber-like/internal/domain/assignment"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/bid"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/driver"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/reservation"
@@ -34,8 +35,17 @@ type BidRepository interface {
 }
 
 type ReservationRepository interface {
+	Get(ctx context.Context, id reservation.ID) (reservation.Reservation, error)
 	Create(ctx context.Context, r reservation.Reservation) error
+	Save(ctx context.Context, r reservation.Reservation) error
 	GetActiveForRide(ctx context.Context, rideID uuid.UUID) (reservation.Reservation, error)
+}
+
+type AssignmentRepository interface {
+	Get(ctx context.Context, id assignment.ID) (assignment.Assignment, error)
+	Create(ctx context.Context, a assignment.Assignment) error
+	Save(ctx context.Context, a assignment.Assignment) error
+	HasActiveForDriver(ctx context.Context, driverID uuid.UUID) (bool, error)
 }
 
 type DriverRepository interface {
@@ -50,6 +60,7 @@ type Transaction interface {
 	Rides() RideRepository
 	Bids() BidRepository
 	Reservations() ReservationRepository
+	Assignments() AssignmentRepository
 	Drivers() DriverRepository
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error

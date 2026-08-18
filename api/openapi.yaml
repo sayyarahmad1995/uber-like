@@ -1,0 +1,726 @@
+openapi: 3.0.3
+info:
+  title: Uber-like API
+  version: 1.0.0
+  description: |
+    Mobile-facing HTTP API for the Uber-like application.
+    Authentication is provided by an external OIDC provider.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Users
+  - name: Drivers
+  - name: Vehicles
+  - name: Rides
+  - name: Bids
+  - name: Reservations
+  - name: Assignments
+  - name: Payments
+  - name: Settlements
+  - name: Payouts
+  - name: Webhooks
+paths:
+  /me:
+    get:
+      tags: [Users]
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /drivers/me:
+    get:
+      tags: [Drivers]
+      operationId: getMyDriverProfile
+      responses:
+        '200':
+          description: Driver profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /drivers/me/eligibility:
+    get:
+      tags: [Drivers]
+      operationId: getMyDriverEligibility
+      responses:
+        '200':
+          description: Driver eligibility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Eligibility'
+  /drivers/me/availability:
+    post:
+      tags: [Drivers]
+      operationId: setDriverAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRequest'
+      responses:
+        '200':
+          description: Updated availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /drivers/me/location:
+    post:
+      tags: [Drivers]
+      operationId: updateDriverLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationUpdate'
+      responses:
+        '204': {description: Location accepted}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /drivers/me/vehicles:
+    get:
+      tags: [Vehicles]
+      operationId: listMyVehicles
+      responses:
+        '200':
+          description: Driver vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Vehicle'}
+    post:
+      tags: [Vehicles]
+      operationId: createVehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateVehicleRequest'}
+      responses:
+        '201':
+          description: Vehicle created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Vehicle'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /rides:
+    get:
+      tags: [Rides]
+      operationId: listRides
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/RideStatus'
+      responses:
+        '200':
+          description: Paginated rides
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RidePage'}
+    post:
+      tags: [Rides]
+      operationId: createRide
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRideRequest'}
+      responses:
+        '201':
+          description: Ride created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ride'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /rides/{ride_id}:
+    get:
+      tags: [Rides]
+      operationId: getRide
+      parameters:
+        - {$ref: '#/components/parameters/RideId'}
+      responses:
+        '200':
+          description: Ride
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ride'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /rides/{ride_id}/cancel:
+    post:
+      tags: [Rides]
+      operationId: cancelRide
+      parameters:
+        - {$ref: '#/components/parameters/RideId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CancelRideRequest'}
+      responses:
+        '200':
+          description: Cancelled ride
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ride'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /rides/{ride_id}/bids:
+    get:
+      tags: [Bids]
+      operationId: listRideBids
+      parameters:
+        - {$ref: '#/components/parameters/RideId'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Ride bids
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BidPage'}
+    post:
+      tags: [Bids]
+      operationId: createBid
+      parameters:
+        - {$ref: '#/components/parameters/RideId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateBidRequest'}
+      responses:
+        '201':
+          description: Bid created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Bid'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /bids/{bid_id}/withdraw:
+    post:
+      tags: [Bids]
+      operationId: withdrawBid
+      parameters:
+        - {$ref: '#/components/parameters/BidId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Withdrawn bid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Bid'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /bids/{bid_id}/select:
+    post:
+      tags: [Bids]
+      operationId: selectBid
+      parameters:
+        - {$ref: '#/components/parameters/BidId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Selected bid and reservation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reservation'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /rides/{ride_id}/reservations:
+    get:
+      tags: [Reservations]
+      operationId: listRideReservations
+      parameters:
+        - {$ref: '#/components/parameters/RideId'}
+      responses:
+        '200':
+          description: Reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Reservation'}
+  /assignments/{assignment_id}/arrive:
+    post:
+      tags: [Assignments]
+      operationId: markDriverArrived
+      parameters:
+        - {$ref: '#/components/parameters/AssignmentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Assignment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Assignment'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /assignments/{assignment_id}/start:
+    post:
+      tags: [Assignments]
+      operationId: startTrip
+      parameters:
+        - {$ref: '#/components/parameters/AssignmentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Assignment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Assignment'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /assignments/{assignment_id}/complete:
+    post:
+      tags: [Assignments]
+      operationId: completeTrip
+      parameters:
+        - {$ref: '#/components/parameters/AssignmentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CompleteTripRequest'}
+      responses:
+        '200':
+          description: Completed assignment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Assignment'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /payments/{payment_id}:
+    get:
+      tags: [Payments]
+      operationId: getPayment
+      parameters:
+        - {$ref: '#/components/parameters/PaymentId'}
+      responses:
+        '200':
+          description: Payment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payment'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /payments/{payment_id}/capture:
+    post:
+      tags: [Payments]
+      operationId: capturePayment
+      parameters:
+        - {$ref: '#/components/parameters/PaymentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Captured payment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payment'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /payments/{payment_id}/refund:
+    post:
+      tags: [Payments]
+      operationId: refundPayment
+      parameters:
+        - {$ref: '#/components/parameters/PaymentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RefundRequest'}
+      responses:
+        '200':
+          description: Refunded payment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payment'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /settlements/{settlement_id}:
+    get:
+      tags: [Settlements]
+      operationId: getSettlement
+      parameters:
+        - {$ref: '#/components/parameters/SettlementId'}
+      responses:
+        '200':
+          description: Settlement
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Settlement'}
+  /payouts/{payout_id}:
+    get:
+      tags: [Payouts]
+      operationId: getPayout
+      parameters:
+        - {$ref: '#/components/parameters/PayoutId'}
+      responses:
+        '200':
+          description: Payout
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payout'}
+  /webhooks/payments:
+    post:
+      tags: [Webhooks]
+      security: []
+      operationId: receivePaymentWebhook
+      parameters:
+        - name: X-Provider-Signature
+          in: header
+          required: true
+          schema: {type: string}
+        - name: X-Provider-Event-ID
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204': {description: Webhook accepted}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/Conflict'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    RideId:
+      name: ride_id
+      in: path
+      required: true
+      schema: {type: string}
+    BidId:
+      name: bid_id
+      in: path
+      required: true
+      schema: {type: string}
+    AssignmentId:
+      name: assignment_id
+      in: path
+      required: true
+      schema: {type: string}
+    PaymentId:
+      name: payment_id
+      in: path
+      required: true
+      schema: {type: string}
+    SettlementId:
+      name: settlement_id
+      in: path
+      required: true
+      schema: {type: string}
+    PayoutId:
+      name: payout_id
+      in: path
+      required: true
+      schema: {type: string}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: {type: string, minLength: 1, maxLength: 255}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string}
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: Resource not found or intentionally undiscoverable
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: Current state conflicts with the requested operation
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    User:
+      type: object
+      required: [id, status, created_at]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [active, suspended, deactivated]}
+        created_at: {type: string, format: date-time}
+    Driver:
+      type: object
+      required: [id, user_id, status]
+      properties:
+        id: {type: string}
+        user_id: {type: string}
+        status: {type: string}
+    Eligibility:
+      type: object
+      required: [eligible, reasons]
+      properties:
+        eligible: {type: boolean}
+        reasons:
+          type: array
+          items: {type: string}
+    AvailabilityRequest:
+      type: object
+      required: [available]
+      properties:
+        available: {type: boolean}
+    Availability:
+      type: object
+      required: [available]
+      properties:
+        available: {type: boolean}
+    LocationUpdate:
+      type: object
+      required: [latitude, longitude, occurred_at]
+      properties:
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+        occurred_at: {type: string, format: date-time}
+    Vehicle:
+      type: object
+      required: [id, driver_id, vehicle_type, registration_number, status]
+      properties:
+        id: {type: string}
+        driver_id: {type: string}
+        vehicle_type: {type: string}
+        make: {type: string}
+        model: {type: string}
+        registration_number: {type: string}
+        status: {type: string, enum: [active, inactive, suspended]}
+    CreateVehicleRequest:
+      type: object
+      required: [vehicle_type, registration_number]
+      properties:
+        vehicle_type: {type: string}
+        make: {type: string}
+        model: {type: string}
+        registration_number: {type: string}
+    Coordinate:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+    CreateRideRequest:
+      type: object
+      required: [pickup, dropoff]
+      properties:
+        pickup: {$ref: '#/components/schemas/Coordinate'}
+        dropoff: {$ref: '#/components/schemas/Coordinate'}
+    CancelRideRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+    CreateBidRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: {$ref: '#/components/schemas/Money'}
+        expires_at: {type: string, format: date-time}
+    CompleteTripRequest:
+      type: object
+      properties:
+        completed_at: {type: string, format: date-time}
+    RefundRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: {$ref: '#/components/schemas/Money'}
+    Money:
+      type: object
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: {type: integer, format: int64, minimum: 0}
+        currency: {type: string, minLength: 3, maxLength: 3}
+    RideStatus:
+      type: string
+      enum: [requested, bidding, reserved, assigned, driver_arrived, in_progress, completed, cancelled]
+    BidStatus:
+      type: string
+      enum: [submitted, active, withdrawn, rejected, selected, expired]
+    ReservationStatus:
+      type: string
+      enum: [pending, confirmed, expired, cancelled]
+    AssignmentStatus:
+      type: string
+      enum: [assigned, driver_arrived, in_progress, completed, cancelled, released]
+    PaymentStatus:
+      type: string
+      enum: [pending, authorized, captured, failed, refunded, partially_refunded, cancelled]
+    SettlementStatus:
+      type: string
+      enum: [pending, calculated, finalized, reversed]
+    PayoutStatus:
+      type: string
+      enum: [pending, submitted, processing, paid, failed, cancelled]
+    Ride:
+      type: object
+      required: [id, rider_id, status, pickup, dropoff, requested_at, created_at]
+      properties:
+        id: {type: string}
+        rider_id: {type: string}
+        status: {$ref: '#/components/schemas/RideStatus'}
+        pickup: {$ref: '#/components/schemas/Coordinate'}
+        dropoff: {$ref: '#/components/schemas/Coordinate'}
+        requested_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    RidePage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/Ride'}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+    Bid:
+      type: object
+      required: [id, ride_id, driver_id, amount, status, created_at]
+      properties:
+        id: {type: string}
+        ride_id: {type: string}
+        driver_id: {type: string}
+        amount: {$ref: '#/components/schemas/Money'}
+        status: {$ref: '#/components/schemas/BidStatus'}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    BidPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/Bid'}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+    Reservation:
+      type: object
+      required: [id, ride_id, bid_id, driver_id, status, created_at]
+      properties:
+        id: {type: string}
+        ride_id: {type: string}
+        bid_id: {type: string}
+        driver_id: {type: string}
+        status: {$ref: '#/components/schemas/ReservationStatus'}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    Assignment:
+      type: object
+      required: [id, ride_id, driver_id, status, created_at]
+      properties:
+        id: {type: string}
+        ride_id: {type: string}
+        driver_id: {type: string}
+        status: {$ref: '#/components/schemas/AssignmentStatus'}
+        created_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        ended_at: {type: string, format: date-time}
+    Payment:
+      type: object
+      required: [id, ride_id, status, amount, created_at]
+      properties:
+        id: {type: string}
+        ride_id: {type: string}
+        status: {$ref: '#/components/schemas/PaymentStatus'}
+        amount: {$ref: '#/components/schemas/Money'}
+        provider: {type: string}
+        provider_payment_id: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Settlement:
+      type: object
+      required: [id, ride_id, status, gross_amount, platform_fee, driver_amount, currency]
+      properties:
+        id: {type: string}
+        ride_id: {type: string}
+        status: {$ref: '#/components/schemas/SettlementStatus'}
+        gross_amount: {$ref: '#/components/schemas/Money'}
+        platform_fee: {$ref: '#/components/schemas/Money'}
+        driver_amount: {$ref: '#/components/schemas/Money'}
+        currency: {type: string, minLength: 3, maxLength: 3}
+    Payout:
+      type: object
+      required: [id, driver_id, status, amount, created_at]
+      properties:
+        id: {type: string}
+        driver_id: {type: string}
+        settlement_id: {type: string}
+        status: {$ref: '#/components/schemas/PayoutStatus'}
+        amount: {$ref: '#/components/schemas/Money'}
+        provider: {type: string}
+        provider_payout_id: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Pagination:
+      type: object
+      required: [has_more]
+      properties:
+        next_cursor: {type: string, nullable: true}
+        has_more: {type: boolean}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            request_id: {type: string}
+            fields:
+              type: object
+              additionalProperties: {type: string}

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/assignment"
@@ -41,5 +40,3 @@ func (r assignmentRepository) HasActiveForDriver(ctx context.Context, driverID u
 	err := r.q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM assignments WHERE driver_id = $1 AND status IN ('assigned','driver_arrived','in_progress'))`, driverID).Scan(&exists)
 	return exists, err
 }
-
-var _ time.Time

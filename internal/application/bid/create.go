@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
 	domainbid "github.com/sayyarahmad1995/uber-like/internal/domain/bid"
-	domaindriver "github.com/sayyarahmad1995/uber-like/internal/domain/driver"
 	domainride "github.com/sayyarahmad1995/uber-like/internal/domain/ride"
 )
 
@@ -62,5 +61,3 @@ func (uc Create) Execute(ctx context.Context, rideID domainride.ID, driverID uui
 	}
 	return b, nil
 }
-
-var _ = domaindriver.StatusActive

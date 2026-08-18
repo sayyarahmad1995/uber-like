@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/ride"
 )
 
@@ -13,9 +12,14 @@ type rideRepository struct{ q querier }
 func (r rideRepository) Get(ctx context.Context, id ride.ID) (ride.Ride, error) {
 	var out ride.Ride
 	err := r.q.QueryRowContext(ctx, `
-		SELECT id, rider_id, status
+		SELECT id, rider_id, status, pickup_latitude, pickup_longitude,
+			dropoff_latitude, dropoff_longitude
 		FROM rides
-		WHERE id = $1`, id).Scan(&out.ID, &out.RiderID, &out.Status)
+		WHERE id = $1`, id).Scan(
+		&out.ID, &out.RiderID, &out.Status,
+		&out.Pickup.Latitude, &out.Pickup.Longitude,
+		&out.Dropoff.Latitude, &out.Dropoff.Longitude,
+	)
 	if err != nil {
 		return ride.Ride{}, notFound(err)
 	}
@@ -24,9 +28,16 @@ func (r rideRepository) Get(ctx context.Context, id ride.ID) (ride.Ride, error) 
 
 func (r rideRepository) Create(ctx context.Context, v ride.Ride) error {
 	_, err := r.q.ExecContext(ctx, `
-		INSERT INTO rides (id, rider_id, status, pickup_latitude, pickup_longitude,
-			dropoff_latitude, dropoff_longitude)
-		VALUES ($1, $2, $3, 0, 0, 0, 0)`, v.ID, v.RiderID, v.Status)
+		INSERT INTO rides (
+			id, rider_id, status,
+			pickup_latitude, pickup_longitude,
+			dropoff_latitude, dropoff_longitude
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		v.ID, v.RiderID, v.Status,
+		v.Pickup.Latitude, v.Pickup.Longitude,
+		v.Dropoff.Latitude, v.Dropoff.Longitude,
+	)
 	return err
 }
 
@@ -52,5 +63,3 @@ func (r rideRepository) Save(ctx context.Context, v ride.Ride) error {
 	}
 	return nil
 }
-
-var _ = uuid.Nil

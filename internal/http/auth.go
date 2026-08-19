@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
 )
 
@@ -34,7 +35,7 @@ func (m AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		identity, err := m.Resolver.Resolve(r.Context(), token)
-		if err != nil || identity.UserID == [16]byte{} || identity.Subject == "" {
+		if err != nil || identity.UserID == uuid.Nil || identity.Subject == "" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

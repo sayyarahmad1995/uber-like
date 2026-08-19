@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/user"
 )
@@ -31,4 +30,3 @@ func (r userRepository) GetByOIDCSubject(ctx context.Context, subject string) (u
 }
 
 var _ application.UserRepository = userRepository{}
-var _ = uuid.Nil

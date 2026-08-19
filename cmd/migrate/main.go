@@ -91,27 +91,29 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		fatal("load applied migrations: %v", err)
 	}
 
-	validateAppliedMigrations(migrations, applied)
+	if err := validateAppliedMigrations(migrations, applied); err != nil {
+		fatal("validate applied migrations: %v", err)
+	}
 
 	for _, m := range migrations {
 		contents, err := os.ReadFile(m.path)
 		if err != nil {
 			fatal("read migration %s: %v", m.name, err)
 		}
-		checksum := checksum(contents)
+		migrationChecksum := checksum(contents)
 
 		appliedMigration, ok := applied[m.version]
 		if ok {
 			if appliedMigration.name != m.name {
 				fatal("migration %d name changed: database has %q, filesystem has %q", m.version, appliedMigration.name, m.name)
 			}
-			if appliedMigration.checksum != checksum {
+			if appliedMigration.checksum != migrationChecksum {
 				fatal("migration %d (%s) checksum changed", m.version, m.name)
 			}
 			continue
 		}
 
-		if err := applyMigration(ctx, conn, m, contents, checksum); err != nil {
+		if err := applyMigration(ctx, conn, m, contents, migrationChecksum); err != nil {
 			fatal("apply migration %d (%s): %v", m.version, m.name, err)
 		}
 		fmt.Printf("applied migration %03d_%s\n", m.version, m.name)
@@ -174,19 +176,20 @@ func loadAppliedMigrations(ctx context.Context, conn *pgxpool.Conn) (map[int64]a
 	return applied, nil
 }
 
-func validateAppliedMigrations(migrations []migration, applied map[int64]appliedMigration) {
+func validateAppliedMigrations(migrations []migration, applied map[int64]appliedMigration) error {
 	known := make(map[int64]migration, len(migrations))
 	for _, m := range migrations {
 		known[m.version] = m
 	}
 	for version, m := range applied {
 		if _, ok := known[version]; !ok {
-			fatal("database contains unknown migration %d (%s)", version, m.name)
+			return fmt.Errorf("database contains unknown migration %d (%s)", version, m.name)
 		}
 	}
+	return nil
 }
 
-func applyMigration(ctx context.Context, conn *pgxpool.Conn, m migration, contents []byte, checksum string) error {
+func applyMigration(ctx context.Context, conn *pgxpool.Conn, m migration, contents []byte, migrationChecksum string) error {
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		return err
@@ -196,7 +199,7 @@ func applyMigration(ctx context.Context, conn *pgxpool.Conn, m migration, conten
 	if _, err := tx.Exec(ctx, string(contents)); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, "INSERT INTO schema_migrations (version, name, checksum) VALUES ($1, $2, $3)", m.version, m.name, checksum); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO schema_migrations (version, name, checksum) VALUES ($1, $2, $3)", m.version, m.name, migrationChecksum); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

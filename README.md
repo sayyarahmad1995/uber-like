@@ -76,6 +76,32 @@ their requirements become clear.
 | Kubernetes | TBD | Deferred |
 | Microservices | TBD | Deferred |
 
+## Local Development
+
+The backend can be run locally with Docker Compose. PostgreSQL is started
+first, the migration service applies any pending SQL migrations, and the API
+starts only after migrations complete successfully.
+
+```bash
+docker compose up --build
+```
+
+The API exposes:
+
+- `http://localhost:8080/healthz`
+- `http://localhost:8080/readyz`
+
+To inspect migration state:
+
+```bash
+docker compose logs migrate
+docker compose exec postgres psql -U uber_like -d uber_like -c '\\dt'
+```
+
+The migration runner records applied versions and SHA-256 checksums in
+`schema_migrations`. Existing migration files are never silently re-applied,
+and changing an already-applied migration causes the migration step to fail.
+
 ## Documentation
 
 Architecture decisions are documented under `docs/`.

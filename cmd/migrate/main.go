@@ -28,6 +28,12 @@ type migration struct {
 	path    string
 }
 
+type appliedMigration struct {
+	version  int64
+	name     string
+	checksum string
+}
+
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -80,6 +86,13 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		fatal("load migrations: %v", err)
 	}
 
+	applied, err := loadAppliedMigrations(ctx, conn)
+	if err != nil {
+		fatal("load applied migrations: %v", err)
+	}
+
+	validateAppliedMigrations(migrations, applied)
+
 	for _, m := range migrations {
 		contents, err := os.ReadFile(m.path)
 		if err != nil {
@@ -87,16 +100,15 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		}
 		checksum := checksum(contents)
 
-		var appliedChecksum string
-		err = conn.QueryRow(ctx, "SELECT checksum FROM schema_migrations WHERE version = $1", m.version).Scan(&appliedChecksum)
-		switch {
-		case err == nil:
-			if appliedChecksum != checksum {
+		appliedMigration, ok := applied[m.version]
+		if ok {
+			if appliedMigration.name != m.name {
+				fatal("migration %d name changed: database has %q, filesystem has %q", m.version, appliedMigration.name, m.name)
+			}
+			if appliedMigration.checksum != checksum {
 				fatal("migration %d (%s) checksum changed", m.version, m.name)
 			}
 			continue
-		case !errors.Is(err, pgx.ErrNoRows):
-			fatal("check migration %d: %v", m.version, err)
 		}
 
 		if err := applyMigration(ctx, conn, m, contents, checksum); err != nil {
@@ -139,6 +151,39 @@ func loadMigrations(dir string) ([]migration, error) {
 		}
 	}
 	return migrations, nil
+}
+
+func loadAppliedMigrations(ctx context.Context, conn *pgxpool.Conn) (map[int64]appliedMigration, error) {
+	rows, err := conn.Query(ctx, "SELECT version, name, checksum FROM schema_migrations ORDER BY version")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	applied := make(map[int64]appliedMigration)
+	for rows.Next() {
+		var m appliedMigration
+		if err := rows.Scan(&m.version, &m.name, &m.checksum); err != nil {
+			return nil, err
+		}
+		applied[m.version] = m
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return applied, nil
+}
+
+func validateAppliedMigrations(migrations []migration, applied map[int64]appliedMigration) {
+	known := make(map[int64]migration, len(migrations))
+	for _, m := range migrations {
+		known[m.version] = m
+	}
+	for version, m := range applied {
+		if _, ok := known[version]; !ok {
+			fatal("database contains unknown migration %d (%s)", version, m.name)
+		}
+	}
 }
 
 func applyMigration(ctx context.Context, conn *pgxpool.Conn, m migration, contents []byte, checksum string) error {

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/reservation"
@@ -41,6 +40,6 @@ func (r reservationRepository) GetActiveForRide(ctx context.Context, rideID uuid
 	err := r.q.QueryRowContext(ctx, `SELECT id, ride_id, bid_id, driver_id, status, expires_at FROM reservations WHERE ride_id = $1 AND status IN ('pending','confirmed') ORDER BY created_at DESC LIMIT 1`, rideID).
 		Scan(&out.ID, &out.RideID, &out.BidID, &out.DriverID, &out.Status, &expires)
 	if err != nil { return reservation.Reservation{}, notFound(err) }
-	if expires.Valid { out.ExpiresAt = timePtr(expires.Time) }
+	if expires.Valid { out.ExpiresAt = &expires.Time }
 	return out, nil
 }

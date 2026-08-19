@@ -20,9 +20,11 @@ func New(db *sql.DB) *DB { return &DB{db: db} }
 func (d *DB) Ping(ctx context.Context) error { return d.db.PingContext(ctx) }
 func (d *DB) Close() error { return d.db.Close() }
 
-func (d *DB) Begin(ctx context.Context) (*Tx, error) {
+func (d *DB) Begin(ctx context.Context) (application.Transaction, error) {
 	tx, err := d.db.BeginTx(ctx, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &Tx{tx: tx}, nil
 }
 

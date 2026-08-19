@@ -75,11 +75,14 @@ func TestValidateAppliedMigrationsRejectsUnknownVersion(t *testing.T) {
 	migrations := []migration{{version: 1, name: "first"}}
 	applied := map[int64]appliedMigration{
 		1: {version: 1, name: "first", checksum: "checksum"},
+		2: {version: 2, name: "unknown", checksum: "checksum"},
 	}
 
-	_ = migrations
-	_ = applied
-	// validateAppliedMigrations reports failures through fatal(), so this
-	// behavior is exercised by the integration/deployment test rather than
-	// calling it directly in a unit test.
+	err := validateAppliedMigrations(migrations, applied)
+	if err == nil {
+		t.Fatal("validateAppliedMigrations() error = nil, want unknown migration error")
+	}
+	if !strings.Contains(err.Error(), "unknown migration 2") {
+		t.Fatalf("validateAppliedMigrations() error = %q, want unknown migration error", err)
+	}
 }

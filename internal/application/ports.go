@@ -11,6 +11,7 @@ import (
 	"github.com/sayyarahmad1995/uber-like/internal/domain/driver"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/reservation"
 	"github.com/sayyarahmad1995/uber-like/internal/domain/ride"
+	"github.com/sayyarahmad1995/uber-like/internal/domain/user"
 )
 
 var (
@@ -20,6 +21,11 @@ var (
 	ErrNotEligible     = errors.New("driver is not eligible")
 	ErrInvalidArgument = errors.New("invalid argument")
 )
+
+type UserRepository interface {
+	Get(ctx context.Context, id user.ID) (user.User, error)
+	GetByOIDCSubject(ctx context.Context, subject string) (user.User, error)
+}
 
 type RideRepository interface {
 	Get(ctx context.Context, id ride.ID) (ride.Ride, error)

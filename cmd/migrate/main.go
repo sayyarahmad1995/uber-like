@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -155,7 +153,9 @@ func loadMigrations(dir string) ([]migration, error) {
 	return migrations, nil
 }
 
-func loadAppliedMigrations(ctx context.Context, conn *pgxpool.Conn) (map[int64]appliedMigration, error) {
+func loadAppliedMigrations(ctx context.Context, conn interface {
+	Query(context.Context, string, ...any) (pgxRows, error)
+}) (map[int64]appliedMigration, error) {
 	rows, err := conn.Query(ctx, "SELECT version, name, checksum FROM schema_migrations ORDER BY version")
 	if err != nil {
 		return nil, err
@@ -174,6 +174,13 @@ func loadAppliedMigrations(ctx context.Context, conn *pgxpool.Conn) (map[int64]a
 		return nil, err
 	}
 	return applied, nil
+}
+
+type pgxRows interface {
+	Close()
+	Next() bool
+	Scan(...any) error
+	Err() error
 }
 
 func validateAppliedMigrations(migrations []migration, applied map[int64]appliedMigration) error {

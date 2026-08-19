@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
+	"github.com/sayyarahmad1995/uber-like/internal/domain/user"
 )
 
 // DB wraps database/sql for PostgreSQL access. The PostgreSQL driver is wired by
@@ -28,6 +29,7 @@ func (d *DB) Begin(ctx context.Context) (application.Transaction, error) {
 	return &Tx{tx: tx}, nil
 }
 
+func (d *DB) Users() application.UserRepository { return userRepository{q: d.db} }
 func (d *DB) Rides() application.RideRepository { return rideRepository{q: d.db} }
 func (d *DB) Bids() application.BidRepository { return bidRepository{q: d.db} }
 func (d *DB) Reservations() application.ReservationRepository { return reservationRepository{q: d.db} }
@@ -41,5 +43,7 @@ func (d *DB) IsEligible(ctx context.Context, driverID uuid.UUID) (bool, error) {
 	return active, nil
 }
 
+var _ application.UserRepository = userRepository{}
 var _ application.TransactionManager = (*DB)(nil)
 var _ application.EligibilityChecker = (*DB)(nil)
+var _ user.User

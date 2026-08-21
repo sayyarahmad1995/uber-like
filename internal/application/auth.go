@@ -6,7 +6,7 @@ import (
 )
 
 type AuthService struct {
-	Sessions SessionResolver
+	Sessions SessionManager
 	Users    UserRepository
 }
 
@@ -30,4 +30,14 @@ func (s AuthService) Provision(ctx context.Context, token string) (Identity, err
 	}
 
 	return Identity{Subject: subject, UserID: localUser.ID}, nil
+}
+
+func (s AuthService) Logout(ctx context.Context, token string) error {
+	if s.Sessions == nil {
+		return ErrInvalidArgument
+	}
+	if strings.TrimSpace(token) == "" {
+		return ErrInvalidArgument
+	}
+	return s.Sessions.Logout(ctx, token)
 }

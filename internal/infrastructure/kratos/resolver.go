@@ -47,40 +47,51 @@ func NewResolver(baseURL string, users UserRepository) *Resolver {
 	}
 }
 
-func (r *Resolver) Resolve(ctx context.Context, token string) (application.Identity, error) {
-	if r == nil || r.Users == nil || r.Client == nil || strings.TrimSpace(r.BaseURL) == "" {
-		return application.Identity{}, ErrInvalidSession
+func (r *Resolver) ResolveSubject(ctx context.Context, token string) (string, error) {
+	if r == nil || r.Client == nil || strings.TrimSpace(r.BaseURL) == "" {
+		return "", ErrInvalidSession
 	}
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return application.Identity{}, ErrInvalidSession
+		return "", ErrInvalidSession
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.BaseURL+"/sessions/whoami", nil)
 	if err != nil {
-		return application.Identity{}, fmt.Errorf("create Kratos whoami request: %w", err)
+		return "", fmt.Errorf("create Kratos whoami request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := r.Client.Do(req)
 	if err != nil {
-		return application.Identity{}, fmt.Errorf("call Kratos whoami: %w", err)
+		return "", fmt.Errorf("call Kratos whoami: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, res.Body)
-		return application.Identity{}, ErrInvalidSession
+		return "", ErrInvalidSession
 	}
 
 	var payload whoAmIResponse
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return application.Identity{}, fmt.Errorf("decode Kratos whoami response: %w", err)
+		return "", fmt.Errorf("decode Kratos whoami response: %w", err)
 	}
 	if !payload.Active || strings.TrimSpace(payload.Identity.ID) == "" {
+		return "", ErrInvalidSession
+	}
+	return strings.TrimSpace(payload.Identity.ID), nil
+}
+
+func (r *Resolver) Resolve(ctx context.Context, token string) (application.Identity, error) {
+	if r == nil || r.Users == nil {
 		return application.Identity{}, ErrInvalidSession
 	}
 
-	subject := strings.TrimSpace(payload.Identity.ID)
+	subject, err := r.ResolveSubject(ctx, token)
+	if err != nil {
+		return application.Identity{}, err
+	}
+
 	localUser, err := r.Users.GetByOIDCSubject(ctx, subject)
 	if err != nil {
 		if errors.Is(err, application.ErrNotFound) {
@@ -99,3 +110,4 @@ func (r *Resolver) Resolve(ctx context.Context, token string) (application.Ident
 }
 
 var _ application.IdentityResolver = (*Resolver)(nil)
+var _ application.SessionResolver = (*Resolver)(nil)

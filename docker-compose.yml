@@ -26,6 +26,53 @@ services:
       postgres:
         condition: service_healthy
 
+  postgres-kratos:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: kratos
+      POSTGRES_USER: kratos
+      POSTGRES_PASSWORD: kratos_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kratos -d kratos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - kratos_postgres_data:/var/lib/postgresql/data
+
+  kratos-migrate:
+    image: oryd/kratos:v26.2.0
+    command: -c /etc/config/kratos/kratos.yml migrate sql up -e --yes
+    environment:
+      DSN: postgres://kratos:kratos_dev@postgres-kratos:5432/kratos?sslmode=disable
+    volumes:
+      - ./deploy/kratos:/etc/config/kratos:ro
+    depends_on:
+      postgres-kratos:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    ports:
+      - "8025:8025"
+    volumes:
+      - mailpit_data:/data
+
+  kratos:
+    image: oryd/kratos:v26.2.0
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    environment:
+      DSN: postgres://kratos:kratos_dev@postgres-kratos:5432/kratos?sslmode=disable
+    volumes:
+      - ./deploy/kratos:/etc/config/kratos:ro
+    ports:
+      - "4433:4433"
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
   api:
     build:
       context: .
@@ -34,6 +81,7 @@ services:
     environment:
       DATABASE_URL: postgres://uber_like:uber_like_dev@postgres:5432/uber_like?sslmode=disable
       HTTP_ADDR: :8080
+      KRATOS_PUBLIC_URL: http://kratos:4433
       RESERVATION_TTL_SECONDS: 300
     ports:
       - "8080:8080"
@@ -43,3 +91,5 @@ services:
 
 volumes:
   postgres_data:
+  kratos_postgres_data:
+  mailpit_data:

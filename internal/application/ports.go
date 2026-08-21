@@ -25,6 +25,16 @@ var (
 type UserRepository interface {
 	Get(ctx context.Context, id user.ID) (user.User, error)
 	GetByOIDCSubject(ctx context.Context, subject string) (user.User, error)
+	ProvisionByOIDCSubject(ctx context.Context, subject string) (user.User, error)
+}
+
+type SessionResolver interface {
+	ResolveSubject(ctx context.Context, token string) (string, error)
+}
+
+type SessionManager interface {
+	SessionResolver
+	Logout(ctx context.Context, token string) error
 }
 
 type RideRepository interface {

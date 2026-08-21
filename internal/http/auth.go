@@ -16,6 +16,15 @@ type AuthMiddleware struct {
 	Resolver application.IdentityResolver
 }
 
+func BearerToken(r *http.Request) (string, bool) {
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if header == "" || len(header) < 7 || !strings.EqualFold(header[:7], "Bearer ") {
+		return "", false
+	}
+	token := strings.TrimSpace(header[7:])
+	return token, token != ""
+}
+
 func (m AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if m.Resolver == nil {
@@ -23,13 +32,8 @@ func (m AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		header := strings.TrimSpace(r.Header.Get("Authorization"))
-		if header == "" || len(header) < 7 || !strings.EqualFold(header[:7], "Bearer ") {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		token := strings.TrimSpace(header[7:])
-		if token == "" {
+		token, ok := BearerToken(r)
+		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

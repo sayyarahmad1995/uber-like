@@ -1,0 +1,52 @@
+{
+  "$id": "https://schemas.uber-like.local/identity.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Uber-like User",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email",
+          "ory.sh/kratos": {
+            "credentials": {
+              "password": {
+                "identifier": true
+              }
+            },
+            "verification": {
+              "via": "email"
+            },
+            "recovery": {
+              "via": "email"
+            }
+          }
+        },
+        "phone": {
+          "type": "string",
+          "title": "Phone",
+          "pattern": "^\\+[1-9][0-9]{7,14}$"
+        },
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "last": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["email"],
+      "additionalProperties": false
+    }
+  }
+}

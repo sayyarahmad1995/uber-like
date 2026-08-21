@@ -8,24 +8,33 @@ import (
 )
 
 type Config struct {
-	HTTPAddr       string
-	DatabaseURL    string
-	ReservationTTL time.Duration
+	HTTPAddr        string
+	DatabaseURL     string
+	KratosPublicURL string
+	ReservationTTL  time.Duration
 }
 
 func Load() (Config, error) {
 	addr := getenv("HTTP_ADDR", ":8080")
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
 	}
+
+	kratosPublicURL := getenv("KRATOS_PUBLIC_URL", "http://kratos:4433")
 
 	ttlSeconds := getenvInt("RESERVATION_TTL_SECONDS", 30)
 	if ttlSeconds <= 0 {
 		return Config{}, errors.New("RESERVATION_TTL_SECONDS must be positive")
 	}
 
-	return Config{HTTPAddr: addr, DatabaseURL: databaseURL, ReservationTTL: time.Duration(ttlSeconds) * time.Second}, nil
+	return Config{
+		HTTPAddr:        addr,
+		DatabaseURL:     databaseURL,
+		KratosPublicURL: kratosPublicURL,
+		ReservationTTL:  time.Duration(ttlSeconds) * time.Second,
+	}, nil
 }
 
 func getenv(key, fallback string) string {

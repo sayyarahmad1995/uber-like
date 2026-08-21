@@ -42,7 +42,7 @@ services:
 
   kratos-migrate:
     image: oryd/kratos:v26.2.0
-    command: -c /etc/config/kratos/kratos.yml migrate sql up --yes
+    command: -c /etc/config/kratos/kratos.yml migrate sql up -e --yes
     environment:
       DSN: postgres://kratos:kratos_dev@postgres-kratos:5432/kratos?sslmode=disable
     volumes:
@@ -60,7 +60,7 @@ services:
 
   kratos:
     image: oryd/kratos:v26.2.0
-    command: serve -c /etc/config/kratos/kratos.yml --dev
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
     environment:
       DSN: postgres://kratos:kratos_dev@postgres-kratos:5432/kratos?sslmode=disable
     volumes:
@@ -81,6 +81,7 @@ services:
     environment:
       DATABASE_URL: postgres://uber_like:uber_like_dev@postgres:5432/uber_like?sslmode=disable
       HTTP_ADDR: :8080
+      KRATOS_PUBLIC_URL: http://kratos:4433
       RESERVATION_TTL_SECONDS: 300
     ports:
       - "8080:8080"

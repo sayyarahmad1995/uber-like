@@ -66,7 +66,7 @@ secrets:
   cookie:
     - local-only-cookie-secret-change-me
   cipher:
-    - local-only-cipher-secret-change-me-32chars
+    - local-only-cipher-secret-32chars
 
 ciphers:
   algorithm: xchacha20-poly1305
@@ -84,7 +84,7 @@ identity:
 
 courier:
   smtp:
-    connection_uri: smtp://mailpit:1025
+    connection_uri: smtp://mailpit:1025/?disable_starttls=true
     from_address: no-reply@uber-like.local
     from_name: Uber-like
 

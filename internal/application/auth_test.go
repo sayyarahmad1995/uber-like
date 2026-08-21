@@ -9,12 +9,18 @@ import (
 )
 
 type testSessionResolver struct {
-	subject string
-	err     error
+	subject   string
+	err       error
+	loggedOut bool
 }
 
-func (r testSessionResolver) ResolveSubject(context.Context, string) (string, error) {
+func (r *testSessionResolver) ResolveSubject(context.Context, string) (string, error) {
 	return r.subject, r.err
+}
+
+func (r *testSessionResolver) Logout(context.Context, string) error {
+	r.loggedOut = true
+	return r.err
 }
 
 type testUserRepository struct {
@@ -39,8 +45,9 @@ func (r *testUserRepository) ProvisionByOIDCSubject(_ context.Context, subject s
 func TestAuthServiceProvision(t *testing.T) {
 	id := uuid.New()
 	users := &testUserRepository{user: user.New(id)}
+	sessions := &testSessionResolver{subject: "kratos-subject"}
 	service := AuthService{
-		Sessions: testSessionResolver{subject: "kratos-subject"},
+		Sessions: sessions,
 		Users:    users,
 	}
 
@@ -53,5 +60,17 @@ func TestAuthServiceProvision(t *testing.T) {
 	}
 	if users.subject != "kratos-subject" {
 		t.Fatalf("provision subject = %q, want kratos-subject", users.subject)
+	}
+}
+
+func TestAuthServiceLogout(t *testing.T) {
+	sessions := &testSessionResolver{}
+	service := AuthService{Sessions: sessions}
+
+	if err := service.Logout(context.Background(), "session-token"); err != nil {
+		t.Fatal(err)
+	}
+	if !sessions.loggedOut {
+		t.Fatal("session logout was not invoked")
 	}
 }

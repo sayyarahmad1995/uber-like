@@ -12,6 +12,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/sayyarahmad1995/uber-like/internal/application"
 	httpapi "github.com/sayyarahmad1995/uber-like/internal/http"
 	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/kratos"
 	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/postgres"
@@ -46,6 +47,7 @@ func run() error {
 
 	store := postgres.New(db)
 	identityResolver := kratos.NewResolver(cfg.KratosPublicURL, store.Users())
+	authService := application.AuthService{Sessions: identityResolver, Users: store.Users()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -59,6 +61,7 @@ func run() error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready\n"))
 	})
+	mux.Handle("POST /api/v1/auth/provision", httpapi.ProvisionHandler{Auth: authService})
 
 	protected := httpapi.AuthMiddleware{Resolver: identityResolver}.Middleware
 	mux.Handle("GET /api/v1/me", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

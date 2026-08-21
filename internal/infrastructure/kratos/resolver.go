@@ -82,6 +82,33 @@ func (r *Resolver) ResolveSubject(ctx context.Context, token string) (string, er
 	return strings.TrimSpace(payload.Identity.ID), nil
 }
 
+func (r *Resolver) Logout(ctx context.Context, token string) error {
+	if r == nil || r.Client == nil || strings.TrimSpace(r.BaseURL) == "" {
+		return ErrInvalidSession
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ErrInvalidSession
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.BaseURL+"/self-service/logout/api", nil)
+	if err != nil {
+		return fmt.Errorf("create Kratos logout request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := r.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("call Kratos logout: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		_, _ = io.Copy(io.Discard, res.Body)
+		return ErrInvalidSession
+	}
+	return nil
+}
+
 func (r *Resolver) Resolve(ctx context.Context, token string) (application.Identity, error) {
 	if r == nil || r.Users == nil {
 		return application.Identity{}, ErrInvalidSession
@@ -110,4 +137,4 @@ func (r *Resolver) Resolve(ctx context.Context, token string) (application.Ident
 }
 
 var _ application.IdentityResolver = (*Resolver)(nil)
-var _ application.SessionResolver = (*Resolver)(nil)
+var _ application.SessionManager = (*Resolver)(nil)

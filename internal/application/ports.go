@@ -32,6 +32,11 @@ type SessionResolver interface {
 	ResolveSubject(ctx context.Context, token string) (string, error)
 }
 
+type SessionManager interface {
+	SessionResolver
+	Logout(ctx context.Context, token string) error
+}
+
 type RideRepository interface {
 	Get(ctx context.Context, id ride.ID) (ride.Ride, error)
 	Create(ctx context.Context, r ride.Ride) error

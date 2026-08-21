@@ -17,6 +17,10 @@ func (provisionSessionResolver) ResolveSubject(context.Context, string) (string,
 	return "kratos-id", nil
 }
 
+func (provisionSessionResolver) Logout(context.Context, string) error {
+	return nil
+}
+
 type provisionUsers struct{}
 
 func (provisionUsers) Get(context.Context, user.ID) (user.User, error) { return user.User{}, application.ErrNotFound }

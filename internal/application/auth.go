@@ -28,6 +28,9 @@ func (s AuthService) Provision(ctx context.Context, token string) (Identity, err
 	if err != nil {
 		return Identity{}, err
 	}
+	if !localUser.IsActive() {
+		return Identity{}, ErrForbidden
+	}
 
 	return Identity{Subject: subject, UserID: localUser.ID}, nil
 }

@@ -91,11 +91,14 @@ func (r *Resolver) Logout(ctx context.Context, token string) error {
 		return ErrInvalidSession
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.BaseURL+"/self-service/logout/api", nil)
+	payload := strings.NewReader(`{"session_token":"` + token + `"}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.BaseURL+"/self-service/logout/api", payload)
 	if err != nil {
 		return fmt.Errorf("create Kratos logout request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
 	res, err := r.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("call Kratos logout: %w", err)

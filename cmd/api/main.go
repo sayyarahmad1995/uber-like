@@ -82,20 +82,6 @@ func run() error {
 	)
 
 	mux.Handle(
-		"GET /api/v1/me",
-		protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			identity, err := httpapi.MustIdentity(r.Context())
-			if err != nil {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
-		})),
-	)
-
-	mux.Handle(
 		"POST /api/v1/rides",
 		protected(httpapi.CreateRideHandler{
 			CreateRide: rideapp.CreateRide{

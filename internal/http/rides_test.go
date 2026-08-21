@@ -203,3 +203,74 @@ func TestCreateRideHandlerRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
+
+func TestCreateRideHandlerRejectsMissingCoordinates(t *testing.T) {
+	riderID := uuid.New()
+	repo := &createRideRepository{}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides",
+		strings.NewReader(`{}`),
+	)
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := CreateRideHandler{
+		CreateRide: rideapp.CreateRide{Rides: repo},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestCreateRideHandlerRejectsMissingDropoff(t *testing.T) {
+	riderID := uuid.New()
+	repo := &createRideRepository{}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides",
+		strings.NewReader(`{
+			"pickup": {
+				"latitude": 24.8607,
+				"longitude": 67.0011
+			}
+		}`),
+	)
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := CreateRideHandler{
+		CreateRide: rideapp.CreateRide{Rides: repo},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}

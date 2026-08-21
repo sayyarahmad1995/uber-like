@@ -14,8 +14,8 @@ type CreateRideHandler struct {
 }
 
 type createRideRequest struct {
-	Pickup  coordinateRequest `json:"pickup"`
-	Dropoff coordinateRequest `json:"dropoff"`
+	Pickup  *coordinateRequest `json:"pickup"`
+	Dropoff *coordinateRequest `json:"dropoff"`
 }
 
 type createRideResponse struct {
@@ -43,6 +43,11 @@ func (h CreateRideHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Pickup == nil || req.Dropoff == nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}

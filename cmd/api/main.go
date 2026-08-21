@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sayyarahmad1995/uber-like/internal/application"
+	rideapp "github.com/sayyarahmad1995/uber-like/internal/application/ride"
 	httpapi "github.com/sayyarahmad1995/uber-like/internal/http"
 	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/kratos"
 	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/postgres"
@@ -65,25 +66,43 @@ func run() error {
 	mux.Handle("POST /api/v1/auth/logout", httpapi.LogoutHandler{Auth: authService})
 
 	protected := httpapi.AuthMiddleware{Resolver: identityResolver}.Middleware
-	mux.Handle("GET /api/v1/auth/session", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		identity, err := httpapi.MustIdentity(r.Context())
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
-	})))
 
-	mux.Handle("GET /api/v1/me", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		identity, err := httpapi.MustIdentity(r.Context())
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
-	})))
+	mux.Handle(
+		"GET /api/v1/auth/session",
+		protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			identity, err := httpapi.MustIdentity(r.Context())
+			if err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
+		})),
+	)
+
+	mux.Handle(
+		"GET /api/v1/me",
+		protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			identity, err := httpapi.MustIdentity(r.Context())
+			if err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
+		})),
+	)
+
+	mux.Handle(
+		"POST /api/v1/rides",
+		protected(httpapi.CreateRideHandler{
+			CreateRide: rideapp.CreateRide{
+				Rides: store.Rides(),
+			},
+		}),
+	)
 
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	serverErr := make(chan error, 1)

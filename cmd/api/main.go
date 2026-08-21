@@ -12,6 +12,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	httpapi "github.com/sayyarahmad1995/uber-like/internal/http"
+	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/kratos"
 	"github.com/sayyarahmad1995/uber-like/internal/infrastructure/postgres"
 	"github.com/sayyarahmad1995/uber-like/internal/platform/config"
 )
@@ -43,6 +45,7 @@ func run() error {
 	}
 
 	store := postgres.New(db)
+	identityResolver := kratos.NewResolver(cfg.KratosPublicURL, store.Users())
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -56,6 +59,17 @@ func run() error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready\n"))
 	})
+
+	protected := httpapi.AuthMiddleware{Resolver: identityResolver}.Middleware
+	mux.Handle("GET /api/v1/me", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		identity, err := httpapi.MustIdentity(r.Context())
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user_id":"` + identity.UserID.String() + `","subject":"` + identity.Subject + `"}`))
+	})))
 
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	serverErr := make(chan error, 1)

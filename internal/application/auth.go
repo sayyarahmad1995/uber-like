@@ -3,8 +3,6 @@ package application
 import (
 	"context"
 	"strings"
-
-	"github.com/sayyarahmad1995/uber-like/internal/domain/user"
 )
 
 type AuthService struct {
@@ -12,19 +10,24 @@ type AuthService struct {
 	Users    UserRepository
 }
 
-func (s AuthService) Provision(ctx context.Context, token string) (user.User, error) {
+func (s AuthService) Provision(ctx context.Context, token string) (Identity, error) {
 	if s.Sessions == nil || s.Users == nil {
-		return user.User{}, ErrInvalidArgument
+		return Identity{}, ErrInvalidArgument
 	}
 
 	subject, err := s.Sessions.ResolveSubject(ctx, token)
 	if err != nil {
-		return user.User{}, err
+		return Identity{}, err
 	}
 	subject = strings.TrimSpace(subject)
 	if subject == "" {
-		return user.User{}, ErrInvalidArgument
+		return Identity{}, ErrInvalidArgument
 	}
 
-	return s.Users.ProvisionByOIDCSubject(ctx, subject)
+	localUser, err := s.Users.ProvisionByOIDCSubject(ctx, subject)
+	if err != nil {
+		return Identity{}, err
+	}
+
+	return Identity{Subject: subject, UserID: localUser.ID}, nil
 }

@@ -274,3 +274,317 @@ func TestCreateRideHandlerRejectsMissingDropoff(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
+
+type startBiddingRepository struct {
+	ride  domainride.Ride
+	saved domainride.Ride
+}
+
+func (r *startBiddingRepository) Get(_ context.Context, id domainride.ID) (domainride.Ride, error) {
+	if r.ride.ID == uuid.Nil || r.ride.ID != id {
+		return domainride.Ride{}, application.ErrNotFound
+	}
+
+	return r.ride, nil
+}
+
+func (r *startBiddingRepository) Create(context.Context, domainride.Ride) error {
+	return nil
+}
+
+func (r *startBiddingRepository) Save(_ context.Context, ride domainride.Ride) error {
+	r.saved = ride
+	return nil
+}
+
+func TestStartBiddingHandlerRequiresIdentity(t *testing.T) {
+	rideID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/"+rideID.String()+"/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", rideID.String())
+
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestStartBiddingHandlerStartsBiddingForRideOwner(t *testing.T) {
+	riderID := uuid.New()
+	rideID := uuid.New()
+
+	ride, err := domainride.New(
+		rideID,
+		riderID,
+		domainride.Coordinate{
+			Latitude:  24.8607,
+			Longitude: 67.0011,
+		},
+		domainride.Coordinate{
+			Latitude:  24.8615,
+			Longitude: 67.0099,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create ride: %v", err)
+	}
+
+	repo := &startBiddingRepository{
+		ride: ride,
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/"+rideID.String()+"/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", rideID.String())
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{
+			Rides: repo,
+		},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	if repo.saved.Status != domainride.StatusBidding {
+		t.Fatalf("saved status = %s, want %s", repo.saved.Status, domainride.StatusBidding)
+	}
+
+	var response domainride.Ride
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if response.ID != rideID {
+		t.Fatalf("response ID = %s, want %s", response.ID, rideID)
+	}
+
+	if response.Status != domainride.StatusBidding {
+		t.Fatalf("response status = %s, want %s", response.Status, domainride.StatusBidding)
+	}
+}
+
+func TestStartBiddingHandlerRejectsNonOwner(t *testing.T) {
+	riderID := uuid.New()
+	otherUserID := uuid.New()
+	rideID := uuid.New()
+
+	ride, err := domainride.New(
+		rideID,
+		riderID,
+		domainride.Coordinate{
+			Latitude:  24.8607,
+			Longitude: 67.0011,
+		},
+		domainride.Coordinate{
+			Latitude:  24.8615,
+			Longitude: 67.0099,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create ride: %v", err)
+	}
+
+	repo := &startBiddingRepository{
+		ride: ride,
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/"+rideID.String()+"/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", rideID.String())
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "other-subject",
+			UserID:  otherUserID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{
+			Rides: repo,
+		},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+
+	if repo.saved.ID != uuid.Nil {
+		t.Fatalf("ride was unexpectedly saved")
+	}
+}
+
+func TestStartBiddingHandlerRejectsInvalidTransition(t *testing.T) {
+	riderID := uuid.New()
+	rideID := uuid.New()
+
+	ride, err := domainride.New(
+		rideID,
+		riderID,
+		domainride.Coordinate{
+			Latitude:  24.8607,
+			Longitude: 67.0011,
+		},
+		domainride.Coordinate{
+			Latitude:  24.8615,
+			Longitude: 67.0099,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create ride: %v", err)
+	}
+
+	if err := ride.StartBidding(); err != nil {
+		t.Fatalf("start bidding: %v", err)
+	}
+
+	repo := &startBiddingRepository{
+		ride: ride,
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/"+rideID.String()+"/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", rideID.String())
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{
+			Rides: repo,
+		},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
+	}
+
+	if repo.saved.ID != uuid.Nil {
+		t.Fatalf("ride was unexpectedly saved")
+	}
+}
+
+func TestStartBiddingHandlerRejectsInvalidRideID(t *testing.T) {
+	riderID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/not-a-uuid/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", "not-a-uuid")
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestStartBiddingHandlerReturnsNotFoundForUnknownRide(t *testing.T) {
+	riderID := uuid.New()
+	rideID := uuid.New()
+
+	repo := &startBiddingRepository{}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/rides/"+rideID.String()+"/bidding/start",
+		nil,
+	)
+	req.SetPathValue("rideID", rideID.String())
+
+	ctx := context.WithValue(
+		req.Context(),
+		identityContextKey{},
+		application.Identity{
+			Subject: "kratos-subject",
+			UserID:  riderID,
+		},
+	)
+
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	h := StartBiddingHandler{
+		StartBidding: rideapp.StartBidding{
+			Rides: repo,
+		},
+	}
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}

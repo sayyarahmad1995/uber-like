@@ -90,6 +90,15 @@ func run() error {
 		}),
 	)
 
+	mux.Handle(
+		"POST /api/v1/rides/{rideID}/bidding/start",
+		protected(httpapi.StartBiddingHandler{
+			StartBidding: rideapp.StartBidding{
+				Rides: store.Rides(),
+			},
+		}),
+	)
+
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	serverErr := make(chan error, 1)
 	go func() { serverErr <- server.ListenAndServe() }()
